@@ -20,7 +20,7 @@ inputs:
   vault-folders:
     description: 'Folders with secrets in vault'
     required: true
-    default: c6a3b6d2-1a39-45c7-b28c-d859efbec3eb
+    default: c6a3b6d2-1a39-45c7-b28c-d859efbec3eb,07582642-7569-4d7b-a55c-f0a69f7ee864
 
 runs:
   using: "composite"
