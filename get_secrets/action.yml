@@ -1,73 +1,68 @@
 name: 'Get secrets'
-description: 'Get secrets from Bitwarden/Vaultwarden'
-
+description: 'Get secrets from bw'
 inputs:
   bw-cli-path:
     description: 'Bw cli path'
     required: true
-    default: https://github.com/bitwarden/cli/releases/download/v1.22.1/bw-linux-1.22.1.zip
+    default:  https://github.com/bitwarden/cli/releases/download/v1.22.1/bw-linux-1.22.1.zip
   bw-client-id:
     description: 'Bw client id'
     required: true
   bw-client-secret:
-    description: 'Bw client secret'
+    description: 'Bw client secrets'
     required: true
   vault-url:
-    description: 'Vaultwarden URL'
+    description: 'Vault url'
     required: true
   vault-master-password:
-    description: 'Vault master password'
+    description: 'vault-master-password'
     required: true
   vault-folders:
-    description: 'Folders (comma-separated) with secrets in Vault'
+    description: 'Folders with secrets in vault'
     required: true
-
+    default: c6a3b6d2-1a39-45c7-b28c-d859efbec3eb
+    
 runs:
   using: "composite"
   steps:
-    - name: Install Bitwarden CLI
+    - name: Install bw cli
       shell: bash
       run: |
         wget -O bw-cli.zip ${{ inputs.bw-cli-path }}
         unzip bw-cli.zip
         rm -rf bw-cli.zip
         chmod +x bw
+
         ./bw --version
 
-    - name: Login to Bitwarden
+    - name: bw login
       shell: bash
       env:
         BW_CLIENTID: ${{ inputs.bw-client-id }}
         BW_CLIENTSECRET: ${{ inputs.bw-client-secret }}
       run: |
-        ./bw config server "${{ inputs.vault-url }}"
+        ./bw config server ${{inputs.vault-url}}
         ./bw login --apikey
 
-    - name: Get secrets from Vaultwarden
+    - name: Get secrets
       shell: bash
       env:
         BW_PASSWORD: ${{ inputs.vault-master-password }}
-        VAULT_FOLDERS: ${{ inputs.vault-folders }}
+        VAULT-FOLDERS: ${{ inputs.vault-folders }}
       run: |
-        echo "# Unlocking vault..."
+        # Doker-Secrets
         export BW_SESSION=$(./bw unlock --passwordenv BW_PASSWORD --raw)
 
-        IFS=',' read -ra ADDR <<< "$VAULT_FOLDERS"
+        IFS=',' read -ra ADDR <<< "${{env.VAULT-FOLDERS}}"
         for i in "${ADDR[@]}"; do
-          echo "# Processing folder: $i"
-          ./bw list items --folderid "$i" --session "$BW_SESSION" > "$i.json"
-          if [ -s "$i.json" ]; then
-            echo "✅ Exported secrets from $i"
-          else
-            echo "⚠️ No secrets found in $i"
-          fi
+          echo "# process folder: $i"
+          ./bw list items --folderid $i | jq -r  > $i.json
         done
 
-        ./bw logout || true
-        echo "=== JSON files created ==="
-        ls -la *.json || echo "❌ No JSON files created"
+        ./bw logout
+        ls -la
 
-    - name: Generate secrets files
+    - name: Generate secrets
       shell: python
       run: |
         import json
@@ -75,56 +70,67 @@ runs:
         import base64
 
         folders_name_str = "${{ inputs.vault-folders }}"
-        folders_name = folders_name_str.split(',')
-        print(f"Folders to process: {folders_name}")
+        folders_name= folders_name_str.split(',')
+        print(folders_name)
 
-        result = []
+        result = list()
         for folder in folders_name:
+
             file_name = f"{folder}.json"
-            if not os.path.exists(file_name):
-                print(f"⚠️ Skipping missing file: {file_name}")
-                continue
-            with open(file_name, 'r') as f:
-                content_file = json.load(f)
-                content_file = [
-                    {"name": str(item["name"]).lower(), "password": item["login"]["password"]}
-                    for item in content_file if "login" in item and "password" in item["login"]
-                ]
-                filtered = [i for i in content_file if not i["name"].endswith("_b64")]
-                decoded = [
-                    {"name": i["name"].rstrip("_b64"), "password": base64.b64decode(i["password"]).decode()}
-                    for i in content_file if i["name"].endswith("_b64")
-                ]
-                result.extend(filtered + decoded)
+            with open(file_name,'r') as f:
+              content_file = json.load(f)
+              content_file = [
+                  {"name": str(item["name"]).lower(), "password": item["login"]["password"]}
+                  for item in content_file
+              ]
+
+              content_file_filtered = [
+                  item for item in content_file if not str(item["name"]).endswith("_b64")
+              ]
+
+              content_file_process_b64 = [
+                  {
+                      "name": str(item["name"]).rstrip("_b64"),
+                      "password": base64.b64decode(item["password"]).decode(),
+                  }
+                  for item in content_file
+                  if str(item["name"]).endswith("_b64")
+              ]
+              if content_file_filtered:
+                result.extend(content_file_filtered)
+              if content_file_process_b64:
+                result.extend(content_file_process_b64)
             os.remove(file_name)
+        
+        
 
         for item in result:
-            print(f"# Writing {item['name']}.txt")
-            with open(f"{item['name']}.txt", "w") as f:
-                f.write(item['password'])
+          print(f"# Writting {item['name']}.txt")
+          with open(f"{item['name']}.txt", "w") as f:
+            f.write(f"{item['password']}")
 
-    - name: Set secrets in GitHub
+
+    - name: Set secrets to GH
       id: set-secrets
       shell: bash
       run: |
         for i in *.txt; do
             [ -f "$i" ] || break
-            gh secret set ${i%.txt} < "$i"
+            gh secret set ${i%.txt} < $i
         done
 
-    - name: List generated files
+    - name: ls files
       shell: bash
       run: |
-        echo "=== Generated files ==="
         ls -la
 
-    - name: Validate secret extraction
+    - name: Check if secrets got
       shell: bash
       run: |
         count=$(ls -1 *.txt 2>/dev/null | wc -l)
-        if [ "$count" != 0 ]; then 
-          echo "✅ Secrets extracted successfully."
+        if [ $count != 0 ]; then 
+          echo "txt files does exist."
         else
-          echo "❌ No secrets were extracted."
+          echo "txt files does not exist."
           exit 1
-        fi
+        fi 
