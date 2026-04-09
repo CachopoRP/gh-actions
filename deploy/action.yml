@@ -54,7 +54,7 @@ runs:
           key: ${{ inputs.ssh-private-key }}
           script: |
             echo "Move to ${{ inputs.compose-name }} directory"
-            cd /var/lib/docker-deploy/${{ inputs.compose-name }}
+            cd /home/docker-deploy/${{ inputs.compose-name }}
             sudo tar -xzvf ${{ inputs.compose-name }}.tar.gz
             sudo chown -R docker-deploy:docker-deploy .
             echo "Run docker compose up"
