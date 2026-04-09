@@ -41,7 +41,7 @@ runs:
           port: 22
           host: ${{ inputs.ssh-host }}
           origin: "./${{ inputs.compose-name }}.tar.gz"
-          destination: "/var/lib/docker-deploy/${{ inputs.compose-name }}/"
+          destination: "/home/docker-deploy/${{ inputs.compose-name }}/"
           username: ${{ inputs.ssh-user }}
           key: ${{ inputs.ssh-private-key }}
 
