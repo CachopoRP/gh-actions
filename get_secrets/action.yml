@@ -4,7 +4,7 @@ inputs:
   bw-cli-path:
     description: 'Bw cli path'
     required: true
-    default:  https://github.com/bitwarden/cli/releases/download/v1.22.1/bw-linux-1.22.1.zip
+    default:  https://github.com/bitwarden/clients/releases/download/cli-v2026.8.0/bw-linux-2026.8.0.zip
   bw-client-id:
     description: 'Bw client id'
     required: true
