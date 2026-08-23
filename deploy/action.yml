@@ -13,6 +13,14 @@ inputs:
   ssh-private-key:
     description: 'SSH private key'
     required: true
+  ghcr-user:
+    description: 'GitHub user/actor to authenticate against ghcr.io before pulling (optional, needed for private GHCR images)'
+    required: false
+    default: ''
+  ghcr-token:
+    description: 'Token to authenticate against ghcr.io (optional, needed for private GHCR images)'
+    required: false
+    default: ''
 
 runs:
   using: "composite"
@@ -57,6 +65,10 @@ runs:
             cd /home/docker-deploy/${{ inputs.compose-name }}
             sudo tar -xzvf ${{ inputs.compose-name }}.tar.gz
             sudo chown -R docker-deploy:docker-deploy .
+            if [ -n "${{ inputs.ghcr-token }}" ]; then
+              echo "Logging in to ghcr.io"
+              echo "${{ inputs.ghcr-token }}" | sudo docker login ghcr.io -u "${{ inputs.ghcr-user }}" --password-stdin
+            fi
             echo "Pulling latest images (artifacts)"
             sudo docker compose pull
             echo "Run docker compose up"
