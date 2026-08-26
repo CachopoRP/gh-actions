@@ -1,0 +1,55 @@
+name: 'Build resource (auto-detect)'
+description: 'Detecta si un recurso FXServer necesita build (raiz o web/) y lo compila. No-op limpio si no hace falta.'
+
+inputs:
+  path:
+    description: 'Carpeta del recurso a inspeccionar/compilar'
+    required: true
+    default: '.'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Instalar bun (por si algun recurso lo necesita)
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: latest
+
+    - name: Detectar y compilar
+      shell: bash
+      run: |
+        RESOURCE_PATH="${{ inputs.path }}"
+
+        build_dir() {
+          local dir="$1"
+          if [ ! -f "$dir/package.json" ]; then return 1; fi
+          if ! jq -e '.scripts.build' "$dir/package.json" >/dev/null 2>&1; then return 1; fi
+
+          echo "-> Build detectado en $dir"
+          if [ -f "$dir/bun.lock" ] || [ -f "$dir/bun.lockb" ]; then
+            echo "   (bun)"
+            (cd "$dir" && bun install --frozen-lockfile && bun run build)
+          elif [ -f "$dir/package-lock.json" ]; then
+            echo "   (npm)"
+            (cd "$dir" && npm ci && npm run build)
+          elif [ -f "$dir/yarn.lock" ]; then
+            echo "   (yarn)"
+            (cd "$dir" && yarn install --frozen-lockfile && yarn build)
+          else
+            echo "   (npm, sin lockfile)"
+            (cd "$dir" && npm install && npm run build)
+          fi
+          return 0
+        }
+
+        # Prioridad: build de raiz (se asume que si existe, orquesta todo lo
+        # que haga falta -- incluida su propia carpeta web/ si la tiene, como
+        # hace oxmysql). Solo si NO hay build de raiz se busca web/ aparte
+        # (caso ox_lib: sin package.json en raiz, solo en web/).
+        if build_dir "$RESOURCE_PATH"; then
+          echo "OK: build de raiz completado"
+        elif build_dir "$RESOURCE_PATH/web"; then
+          echo "OK: build de web/ completado"
+        else
+          echo "Sin build necesario para $RESOURCE_PATH"
+        fi
