@@ -20,10 +20,14 @@ runs:
       run: |
         RESOURCE_PATH="${{ inputs.path }}"
 
+        # Devuelve el codigo de salida REAL de install+build (nada de forzar
+        # 0 -- un fallo tiene que propagarse, no esconderse). npm ci cae a
+        # npm install si el lockfile esta desincronizado del package.json.
+        # return 2 = "no hay build aqui" (no es un fallo, se prueba otro sitio).
         build_dir() {
           local dir="$1"
-          if [ ! -f "$dir/package.json" ]; then return 1; fi
-          if ! jq -e '.scripts.build' "$dir/package.json" >/dev/null 2>&1; then return 1; fi
+          if [ ! -f "$dir/package.json" ]; then return 2; fi
+          if ! jq -e '.scripts.build' "$dir/package.json" >/dev/null 2>&1; then return 2; fi
 
           echo "-> Build detectado en $dir"
           if [ -f "$dir/bun.lock" ] || [ -f "$dir/bun.lockb" ]; then
@@ -31,7 +35,7 @@ runs:
             (cd "$dir" && bun install --frozen-lockfile && bun run build)
           elif [ -f "$dir/package-lock.json" ]; then
             echo "   (npm)"
-            (cd "$dir" && npm ci && npm run build)
+            (cd "$dir" && (npm ci || npm install) && npm run build)
           elif [ -f "$dir/yarn.lock" ]; then
             echo "   (yarn)"
             (cd "$dir" && yarn install --frozen-lockfile && yarn build)
@@ -39,17 +43,27 @@ runs:
             echo "   (npm, sin lockfile)"
             (cd "$dir" && npm install && npm run build)
           fi
-          return 0
         }
 
         # Prioridad: build de raiz (se asume que si existe, orquesta todo lo
         # que haga falta -- incluida su propia carpeta web/ si la tiene, como
         # hace oxmysql). Solo si NO hay build de raiz se busca web/ aparte
         # (caso ox_lib: sin package.json en raiz, solo en web/).
-        if build_dir "$RESOURCE_PATH"; then
+        set +e
+        build_dir "$RESOURCE_PATH"; rc=$?
+        if [ "$rc" -eq 0 ]; then
           echo "OK: build de raiz completado"
-        elif build_dir "$RESOURCE_PATH/web"; then
-          echo "OK: build de web/ completado"
+        elif [ "$rc" -eq 2 ]; then
+          build_dir "$RESOURCE_PATH/web"; rc=$?
+          if [ "$rc" -eq 0 ]; then
+            echo "OK: build de web/ completado"
+          elif [ "$rc" -eq 2 ]; then
+            echo "Sin build necesario para $RESOURCE_PATH"
+          else
+            echo "::error::build de web/ fallo para $RESOURCE_PATH (exit $rc)"
+            exit 1
+          fi
         else
-          echo "Sin build necesario para $RESOURCE_PATH"
+          echo "::error::build de raiz fallo para $RESOURCE_PATH (exit $rc)"
+          exit 1
         fi
