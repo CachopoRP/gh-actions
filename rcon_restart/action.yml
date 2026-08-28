@@ -1,0 +1,40 @@
+name: 'RCON restart one resource'
+description: 'Envia "restart <recurso>" a FXServer vivo por RCON (UDP, protocolo legacy Quake/GoldSrc), sin reiniciar el contenedor. Ver PROYECTO_SAVIA.md -- fiabilidad parcial confirmada (2/4 en la primera prueba), verificar siempre en logs.yml.'
+
+inputs:
+  name:
+    description: 'Nombre del recurso a reiniciar'
+    required: true
+  rcon-host:
+    required: true
+  rcon-password:
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Enviar comando RCON
+      shell: bash
+      env:
+        RCON_HOST: ${{ inputs.rcon-host }}
+        RCON_PASSWORD: ${{ inputs.rcon-password }}
+        RCON_COMMAND: "restart ${{ inputs.name }}"
+      run: |
+        python3 - <<'EOF'
+        import os, socket
+
+        host = os.environ["RCON_HOST"]
+        password = os.environ["RCON_PASSWORD"]
+        command = os.environ["RCON_COMMAND"]
+
+        packet = b'\xff\xff\xff\xff' + f'rcon {password} {command}'.encode()
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.settimeout(5)
+        sock.sendto(packet, (host, 30120))
+        try:
+            data, _ = sock.recvfrom(4096)
+            print(f"Respuesta recibida ({len(data)} bytes) -- no fiable para confirmar exito, ver logs.yml")
+        except socket.timeout:
+            print("Sin respuesta en 5s")
+        EOF

@@ -1,0 +1,51 @@
+name: 'Sync one resource to Enhanced'
+description: 'Empaqueta un recurso ya compilado y lo mete SOLO a el dentro de /config/resources del contenedor (docker cp + exec, volumen con nombre) -- no toca el resto de resources/.'
+
+inputs:
+  name:
+    description: 'Nombre del recurso (carpeta destino en /config/resources)'
+    required: true
+  path:
+    description: 'Carpeta local con el recurso ya compilado (contenido, no la carpeta padre)'
+    required: true
+  ssh-host:
+    required: true
+  ssh-user:
+    required: true
+  ssh-key:
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Empaquetar
+      shell: bash
+      run: |
+        tar -czf "${{ inputs.name }}.tar.gz" -C "${{ inputs.path }}" .
+
+    - name: Copiar tarball al host (scratch)
+      uses: srueda99/scp-action@v13
+      with:
+        port: 22
+        host: ${{ inputs.ssh-host }}
+        username: ${{ inputs.ssh-user }}
+        key: ${{ inputs.ssh-key }}
+        origin: "./${{ inputs.name }}.tar.gz"
+        destination: "/var/lib/docker-deploy/fivem-enhanced/"
+
+    - name: Meter en el volumen (docker cp + exec, solo esta carpeta)
+      uses: appleboy/ssh-action@v1.2.5
+      with:
+        host: ${{ inputs.ssh-host }}
+        username: ${{ inputs.ssh-user }}
+        key: ${{ inputs.ssh-key }}
+        envs: RESOURCE_NAME
+        script: |
+          set -e
+          STAGE="/var/lib/docker-deploy/fivem-enhanced/${RESOURCE_NAME}.tar.gz"
+          sudo docker cp "$STAGE" "fivem-enhanced:/config/resources/${RESOURCE_NAME}.tar.gz"
+          sudo docker exec fivem-enhanced sh -c "cd /config/resources && rm -rf '${RESOURCE_NAME}' && mkdir '${RESOURCE_NAME}' && tar -xzf '${RESOURCE_NAME}.tar.gz' -C '${RESOURCE_NAME}' && rm -f '${RESOURCE_NAME}.tar.gz'"
+          rm -f "$STAGE"
+          echo "${RESOURCE_NAME} actualizado dentro del volumen fivem-config"
+      env:
+        RESOURCE_NAME: ${{ inputs.name }}
