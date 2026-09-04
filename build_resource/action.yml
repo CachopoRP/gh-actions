@@ -29,6 +29,19 @@ runs:
           if [ ! -f "$dir/package.json" ]; then return 2; fi
           if ! jq -e '.scripts.build' "$dir/package.json" >/dev/null 2>&1; then return 2; fi
 
+          # Opt-in por recurso: si el mantenedor ya compila en local y
+          # commitea la salida (mismo patron que qbx_phone/web,
+          # screenshot-basic, mm_radio/web -- el pipeline de deploy no
+          # construye nada, solo sincroniza lo que ya esta en git), un
+          # fichero ".ci-prebuilt" junto al package.json le dice a esta
+          # action que se salte el install+build de CI del todo. Sin ese
+          # fichero, comportamiento identico a como era antes -- ningun
+          # recurso existente cambia de comportamiento sin pedirlo el mismo.
+          if [ -f "$dir/.ci-prebuilt" ]; then
+            echo "-> $dir/.ci-prebuilt presente -- build ya commiteado a mano, sin recompilar en CI"
+            return 0
+          fi
+
           echo "-> Build detectado en $dir"
           if [ -f "$dir/bun.lock" ] || [ -f "$dir/bun.lockb" ]; then
             echo "   (bun)"
