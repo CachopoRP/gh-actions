@@ -29,20 +29,40 @@ runs:
           if [ ! -f "$dir/package.json" ]; then return 2; fi
           if ! jq -e '.scripts.build' "$dir/package.json" >/dev/null 2>&1; then return 2; fi
 
-          # Opt-in por recurso: si el mantenedor ya compila en local y
-          # commitea la salida (mismo patron que qbx_phone/web,
-          # screenshot-basic, mm_radio/web -- el pipeline de deploy no
-          # construye nada, solo sincroniza lo que ya esta en git), un
-          # fichero ".ci-prebuilt" junto al package.json le dice a esta
-          # action que se salte el install+build de CI del todo. Sin ese
-          # fichero, comportamiento identico a como era antes -- ningun
-          # recurso existente cambia de comportamiento sin pedirlo el mismo.
+          # ".ci-prebuilt" junto al package.json fuerza el salto siempre,
+          # sin importar lo de abajo -- util si el nombre de la carpeta de
+          # salida no es ninguno de los habituales que se buscan despues.
           if [ -f "$dir/.ci-prebuilt" ]; then
             echo "-> $dir/.ci-prebuilt presente -- build ya commiteado a mano, sin recompilar en CI"
             return 0
           fi
 
-          echo "-> Build detectado en $dir"
+          # Workflow por defecto de este proyecto: se compila en local y se
+          # commitea la salida (el pipeline de deploy no construye nada,
+          # solo sincroniza lo que ya esta en git -- qbx_phone/web,
+          # screenshot-basic, mm_radio/web). Si YA hay una carpeta de salida
+          # con contenido junto al recurso (nombres habituales de
+          # Vite/Webpack/etc en este proyecto), se asume que es ese build
+          # real y se salta CI del todo -- si NO hay ninguna, se compila
+          # aqui como red de seguridad (alguien subio solo el fuente sin
+          # compilar en local).
+          #
+          # Sin comprobacion de fecha: no se compara si la salida es mas
+          # nueva que el fuente, solo si existe. Confia en que compilar en
+          # local antes de subir sea la disciplina real seguida -- si se
+          # toca el fuente y se olvida recompilar, esto NO lo detecta.
+          local resource_root
+          resource_root="$(dirname "$dir")"
+          for out_name in build dist html www; do
+            for out_dir in "$dir/$out_name" "$resource_root/$out_name"; do
+              if [ -n "$(find "$out_dir" -maxdepth 1 -type f 2>/dev/null)" ]; then
+                echo "-> $out_dir ya tiene contenido -- se asume build real ya commiteado, sin recompilar en CI"
+                return 0
+              fi
+            done
+          done
+
+          echo "-> Build detectado en $dir, sin salida compilada previa -- construyendo en CI"
           if [ -f "$dir/bun.lock" ] || [ -f "$dir/bun.lockb" ]; then
             echo "   (bun)"
             (cd "$dir" && bun install --frozen-lockfile && bun run build)
