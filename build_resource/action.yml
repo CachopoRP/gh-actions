@@ -13,7 +13,17 @@ runs:
     - name: Instalar bun (por si algun recurso lo necesita)
       uses: oven-sh/setup-bun@v2
       with:
-        bun-version: latest
+        # Bug real 2026-09 (visto en vivo con oxmysql, ox_lib, osm-atmdui,
+        # ninguno relacionado entre si): "latest" flotante hace que el
+        # runner instale una version de bun distinta a la que genero el
+        # bun.lock commiteado -- el formato/resuelto del lockfile puede
+        # variar entre versiones de bun, y "bun install --frozen-lockfile"
+        # lo interpreta como "cambiado" aunque las dependencias reales no
+        # lo esten ("error: lockfile had changes, but lockfile is frozen").
+        # Fijada a la version usada en las builds locales reales de este
+        # periodo -- subir esto a mano si se actualiza bun de verdad en
+        # local (y se regeneran los bun.lock commiteados a la vez).
+        bun-version: '1.4.1'
 
     - name: Detectar y compilar
       shell: bash
