@@ -1,0 +1,49 @@
+name: Lint (reutilizable)
+
+# Lint de Lua para los recursos de CachopoRP. Cada fork llama a este workflow desde su
+# propio .github/workflows/lint.yml (mismos triggers, ver conventions/self-hosted-runner.md
+# en ops-docs). Centraliza el runner y las versiones de las acciones: cambiarlos aqui
+# afecta a todos los forks a la vez.
+#
+# Runner por defecto: el runner de organizacion del host 144 (etiqueta crp-ci, con Docker
+# rootless, necesario porque fivem-lua-lint-action es una accion de contenedor).
+# Un fork puede volver a los runners de GitHub pasando runner: '"ubuntu-latest"'.
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: 'JSON del runs-on (default: runner propio crp-ci)'
+        type: string
+        default: '["self-hosted","crp-ci"]'
+      extra_libs:
+        description: 'Librerias extra para luacheck'
+        type: string
+        default: 'ox_lib+mysql+qblocales+qbox+qbox_playerdata+qbox_lib'
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: read
+
+jobs:
+  lint:
+    name: Lint Resource
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Lint
+        uses: iLLeniumStudios/fivem-lua-lint-action@v2
+        with:
+          capture: "junit.xml"
+          args: "-t --formatter JUnit"
+          extra_libs: ${{ inputs.extra_libs }}
+      - name: Generate Lint Report
+        if: always()
+        uses: mikepenz/action-junit-report@v6
+        with:
+          report_paths: "**/junit.xml"
+          check_name: Linting Report
+          fail_on_failure: false
