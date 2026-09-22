@@ -1,0 +1,26 @@
+name: validate-docker-compose (reutilizable)
+
+# Valida docker-compose.yaml en PRs -- usado por FiveM, Web, rpbase, skins (disparador local ->
+# este workflow). No usa ningun secret de produccion, solo lee el fichero -- va al runner de
+# CI de organizacion (crp-ci) por defecto, sin riesgo de privilegios.
+
+on:
+  workflow_call:
+    inputs:
+      compose-name:
+        required: true
+        type: string
+      runner:
+        description: 'JSON del runs-on (default: runner de CI de organizacion)'
+        type: string
+        default: '["self-hosted","crp-ci"]'
+
+jobs:
+  validate:
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    timeout-minutes: 10
+    steps:
+      - name: PR_verify
+        uses: CachopoRP/gh-actions/pr_verify@main
+        with:
+          compose-name: ${{ inputs.compose-name }}
