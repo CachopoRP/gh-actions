@@ -1,0 +1,65 @@
+name: deploy-up (reutilizable)
+
+# Trae secrets de Vaultwarden y hace 'docker compose up' tras un cambio en docker-compose.yaml
+# -- usado por FiveM, FiveM-Enhanced, Web, rpbase, skins (disparador local -> este workflow).
+
+on:
+  workflow_call:
+    inputs:
+      compose-name:
+        required: true
+        type: string
+      ssh-host:
+        required: true
+        type: string
+      ssh-user:
+        required: true
+        type: string
+      vault-url:
+        required: true
+        type: string
+      vault-folder-ids:
+        required: true
+        type: string
+      runner:
+        description: 'JSON del runs-on (default: runner de deploy de organizacion)'
+        type: string
+        default: '["self-hosted","crp-deploy"]'
+
+permissions:
+  contents: write
+  packages: read
+
+jobs:
+  deploy-up:
+    name: Deploy Up
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    timeout-minutes: 30
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Get secrets
+        id: get-secrets
+        uses: CachopoRP/gh-actions/get_secrets@main
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT_TOKEN }}
+        with:
+          bw-client-id: ${{ secrets.VW_CLIENTID_SECRET }}
+          bw-client-secret: ${{ secrets.VW_CLIENTSECRET_SECRET }}
+          vault-url: ${{ inputs.vault-url }}
+          vault-master-password: ${{ secrets.VW_PASSWORD }}
+          vault-folders: ${{ inputs.vault-folder-ids }}
+
+      - name: Deploy
+        id: deploy
+        uses: CachopoRP/gh-actions/deploy@main
+        with:
+          compose-name: ${{ inputs.compose-name }}
+          ssh-host: ${{ inputs.ssh-host }}
+          ssh-user: ${{ inputs.ssh-user }}
+          ssh-private-key: ${{ secrets.RP_SSH_PRIVATE_KEY }}
+          ghcr-user: ${{ github.actor }}
+          ghcr-token: ${{ secrets.GITHUB_TOKEN }}

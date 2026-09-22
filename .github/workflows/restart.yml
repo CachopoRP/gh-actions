@@ -1,0 +1,35 @@
+name: restart (reutilizable)
+
+# Reinicia un compose project via SSH -- usado por FiveM, FiveM-Enhanced, Web, rpbase, skins.
+# Cada uno de esos repos solo tiene un disparador (.github/workflows/restart.yml) que llama a
+# este; el runner y la version de la composite action se cambian aqui una vez, no repo a repo.
+
+on:
+  workflow_call:
+    inputs:
+      compose-name:
+        required: true
+        type: string
+      ssh-host:
+        required: true
+        type: string
+      ssh-user:
+        required: true
+        type: string
+      runner:
+        description: 'JSON del runs-on (default: runner de deploy de organizacion)'
+        type: string
+        default: '["self-hosted","crp-deploy"]'
+
+jobs:
+  remote-command:
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    timeout-minutes: 20
+    steps:
+      - name: Restart ${{ inputs.compose-name }}
+        uses: CachopoRP/gh-actions/restart@main
+        with:
+          compose-name: ${{ inputs.compose-name }}
+          ssh-host: ${{ inputs.ssh-host }}
+          ssh-user: ${{ inputs.ssh-user }}
+          ssh-private-key: ${{ secrets.RP_SSH_PRIVATE_KEY }}
