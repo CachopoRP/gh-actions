@@ -20,6 +20,9 @@ on:
         description: 'JSON del runs-on (default: runner de deploy de organizacion)'
         type: string
         default: '["self-hosted","crp-deploy"]'
+    secrets:
+      ssh-private-key:
+        required: true
 
 jobs:
   remote-command:
@@ -32,4 +35,4 @@ jobs:
           compose-name: ${{ inputs.compose-name }}
           ssh-host: ${{ inputs.ssh-host }}
           ssh-user: ${{ inputs.ssh-user }}
-          ssh-private-key: ${{ secrets.RP_SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.ssh-private-key }}

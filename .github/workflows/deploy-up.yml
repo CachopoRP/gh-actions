@@ -25,6 +25,17 @@ on:
         description: 'JSON del runs-on (default: runner de deploy de organizacion)'
         type: string
         default: '["self-hosted","crp-deploy"]'
+    secrets:
+      gh-pat-token:
+        required: true
+      vw-clientid:
+        required: true
+      vw-clientsecret:
+        required: true
+      vw-password:
+        required: true
+      ssh-private-key:
+        required: true
 
 permissions:
   contents: write
@@ -45,12 +56,12 @@ jobs:
         id: get-secrets
         uses: CachopoRP/gh-actions/get_secrets@main
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT_TOKEN }}
+          GH_TOKEN: ${{ secrets.gh-pat-token }}
         with:
-          bw-client-id: ${{ secrets.VW_CLIENTID_SECRET }}
-          bw-client-secret: ${{ secrets.VW_CLIENTSECRET_SECRET }}
+          bw-client-id: ${{ secrets.vw-clientid }}
+          bw-client-secret: ${{ secrets.vw-clientsecret }}
           vault-url: ${{ inputs.vault-url }}
-          vault-master-password: ${{ secrets.VW_PASSWORD }}
+          vault-master-password: ${{ secrets.vw-password }}
           vault-folders: ${{ inputs.vault-folder-ids }}
 
       - name: Deploy
@@ -60,6 +71,6 @@ jobs:
           compose-name: ${{ inputs.compose-name }}
           ssh-host: ${{ inputs.ssh-host }}
           ssh-user: ${{ inputs.ssh-user }}
-          ssh-private-key: ${{ secrets.RP_SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.ssh-private-key }}
           ghcr-user: ${{ github.actor }}
           ghcr-token: ${{ secrets.GITHUB_TOKEN }}
